@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="gen-src"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/GUIParsing/ParserVersion"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/GUIParsing/TokenMgrVersion"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/Interpreter"/>
+	<classpathentry excluding="1.5/" kind="src" path="libs/javacc-7.0.2/examples/JavaGrammars"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/JavaGrammars/1.5"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/JJTreeExamples/java"/>
+	<classpathentry excluding="input/" kind="src" path="libs/javacc-7.0.2/examples/Obfuscator"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/Obfuscator/input"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/Transformer"/>
+	<classpathentry kind="src" path="libs/javacc-7.0.2/examples/VTransformer"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="test"/>
+	<classpathentry kind="lib" path="libs/javacc-7.0.2/bin/lib/javacc.jar"/>
+	<classpathentry kind="output" path="out/production/Template"/>
+</classpath>
