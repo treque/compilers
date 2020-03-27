@@ -62,9 +62,9 @@ public class LifeVariablesVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTDeclaration node, Object data) {
-        ArrayList<String> declarations = new ArrayList<>();
+        ArrayList<String> decs= new ArrayList<>();
 
-        node.childrenAccept(this, declarations);
+        node.childrenAccept(this, decs);
         return null;
     }
 
@@ -76,7 +76,6 @@ public class LifeVariablesVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTStmt node, Object data) {
-        //HashSet<String> previous_step = (HashSet<String>) data;
 
         String step = genStep();
         StepStatus s = new StepStatus();
@@ -101,20 +100,20 @@ public class LifeVariablesVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTIfStmt node, Object data) {
-        ArrayList<String> expressions = new ArrayList<>();
+        ArrayList<String> exp = new ArrayList<>();
         // exp
-        node.jjtGetChild(0).jjtAccept(this, expressions);
-        for (String step : previous_step)
+        node.jjtGetChild(0).jjtAccept(this, exp);
+        for (String step : previous_step) // le if(exp)
         {
-            for (String ref : expressions)
+            for (String ref : exp)
             {
-                allSteps.get(step).REF.add(ref);
+                allSteps.get(step).REF.add(ref); // ajoute les ref lorsques trouves
             }
         }
 
-
         HashSet<String> mem_previous_step = (HashSet<String>) previous_step.clone();
         HashSet<String> if_previous_step;
+
         if (node.jjtGetNumChildren() == 2) {
             if_previous_step = (HashSet<String>) previous_step.clone(); // if no else
         }
@@ -136,14 +135,15 @@ public class LifeVariablesVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTWhileStmt node, Object data) {
+
         HashSet<String> mem_previous_step = (HashSet<String>)previous_step.clone();
 
-        ArrayList<String> expressions = new ArrayList<>();
+        ArrayList<String> exp = new ArrayList<>();
         // get all exp
-        node.jjtGetChild(0).jjtAccept(this, expressions);
+        node.jjtGetChild(0).jjtAccept(this, exp);
         for(String step : previous_step)
         {
-            for (String ref : expressions)
+            for (String ref : exp)
             {
                 allSteps.get(step).REF.add(ref);
             }
@@ -250,7 +250,6 @@ public class LifeVariablesVisitor implements ParserVisitor {
             // add the id to the refs or defs here
             ((ArrayList<String>)data).add(node.getValue());
         }
-        node.childrenAccept(this, data);
         return null;
     }
 
@@ -278,7 +277,7 @@ public class LifeVariablesVisitor implements ParserVisitor {
     public Object visit(ASTDefaultStmt node, Object data) {
         node.childrenAccept(this, data);
         return null;
-    } 
+    }
 
     //utile surtout pour envoyé de l'informations au enfant des expressions logiques.
     private class StepStatus {
@@ -312,27 +311,27 @@ public class LifeVariablesVisitor implements ParserVisitor {
     }
 
     private void compute_IN_OUT() {
-        // previous_step sont les derniers steps visited,
+        // just loop through all the steps
        for (String step: previous_step)
        {
            LinkedList<String> stack = new LinkedList<>(); // linkedlists better act as queues
            stack.push(step);
 
-           while(stack.isEmpty())
+           while(!stack.isEmpty()) // should be empty once it stops pushing preds
            {
                String currentStep = stack.pop();
+               HashSet<String> oldIN = (HashSet<String>)allSteps.get(currentStep).IN.clone(); // to avoid loops later
+
                for (String succ : allSteps.get(currentStep).SUCC) // for every step
                {
                    for (String out : allSteps.get(succ).IN) // for out, for all succ in step
                    {
-                       allSteps.get(step).OUT.add(out); //out(step) = out(step) U in(succ)
+                       allSteps.get(currentStep).OUT.add(out); //out(i) = out(i) U in(succ)
                    }
                }
 
-               HashSet<String> oldIN = (HashSet<String>)allSteps.get(step).IN.clone(); // to avoid loops
-
                // in(i) = ref(i) U (out(i) - def(i)
-               allSteps.get(currentStep).IN = (HashSet<String>)allSteps.get(step).OUT.clone(); // out(i)
+               allSteps.get(currentStep).IN = (HashSet<String>)allSteps.get(currentStep).OUT.clone(); // out(i)
                for (String def : allSteps.get(currentStep).DEF)
                {
                    allSteps.get(currentStep).IN.remove(def); // -def(i)
@@ -342,7 +341,7 @@ public class LifeVariablesVisitor implements ParserVisitor {
                    allSteps.get(currentStep).IN.add(ref); // ref(i)
                }
 
-               if (!allSteps.get(step).IN.equals(oldIN)) // avoiding loops
+               if (!allSteps.get(currentStep).IN.equals(oldIN)) // avoiding loops
                {
                     for (String pred : allSteps.get(currentStep).PRED)
                     {
