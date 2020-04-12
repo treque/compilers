@@ -335,7 +335,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 buff += ", " + line.get(i);
             buff +="\n";
             // you can uncomment the others set if you want to see them.
-             //buff += "// REF      : " +  REF.toString() +"\n";
+            //buff += "// REF      : " +  REF.toString() +"\n";
             // buff += "// DEF      : " +  DEF.toString() +"\n";
             // buff += "// PRED     : " +  PRED.toString() +"\n";
             // buff += "// SUCC     : " +  SUCC.toString() +"\n";
@@ -564,9 +564,9 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             }
             else // no spill
             {*/
-                String closestEntry = set_ordered(possibleEntries).get(0);
-                graph.removeNode(closestEntry);
-                stack.push(closestEntry);
+            String closestEntry = set_ordered(possibleEntries).get(0);
+            graph.removeNode(closestEntry);
+            stack.push(closestEntry);
             //}
 
         }
@@ -603,20 +603,41 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             {
                 // find the next available register
                 int maxReg = 0;
-                bool regFound = false;
-                /*for (String coloredNeighbor : coloredGraph.adj.get(poppedNode))
+
+                // first find the max
+                for (String coloredNeighbor : coloredGraph.adj.get(poppedNode))
                 {
                     int regNum = Integer.parseInt(symbolicToReg.get(coloredNeighbor).replace("R", ""));
                     if (regNum > maxReg)
                     {
                         maxReg = regNum;
                     }
-                }*/
-                while (!regFound)
-                {
+                }
+                // iterate through the neighbors to see if there is a gap
+                // ex neighbours are 0 1 4, should add 2 and break at 2.
+                HashSet<String> neighbours = coloredGraph.adj.get(poppedNode);
+                HashSet<String> neighbourRegisters = new HashSet<>();
 
+                // remplir le neighbourRegisters
+                for (String neighbour : neighbours)
+                {
+                    String reg = symbolicToReg.get(neighbour);
+                    neighbourRegisters.add(reg);
                 }
 
+                // now checking for the gap
+                // ex on regarde si (0 1 4) contient 0, 1, 2, 3, 4
+                int currentRegNumber = 0;
+                while (currentRegNumber < maxReg)
+                {
+                    if (!neighbourRegisters.contains("R" + Integer.toString(currentRegNumber)))
+                    {
+                        // gap found
+                        maxReg = currentRegNumber - 1; // -1 bc on fait +1 plus bas, on si je trouve que 2 est pas la, alors 1 + 1 = R2
+                        break;
+                    }
+                    currentRegNumber++;
+                }
 
                 symbolicToReg.put(poppedNode, "R" + Integer.toString(maxReg + 1));
             }
@@ -680,10 +701,10 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             adj.remove(v);
             for (String node : adj.keySet())
             {
-               if (adj.get(node).contains(v))
-               {
-                   adj.get(node).remove(v); // this is supposed to give me a reference to the set of neighbors
-               }
+                if (adj.get(node).contains(v))
+                {
+                    adj.get(node).remove(v); // this is supposed to give me a reference to the set of neighbors
+                }
             }
 
         }
