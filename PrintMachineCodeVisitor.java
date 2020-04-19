@@ -2,6 +2,7 @@ package analyzer.visitors;
 
 import analyzer.ast.*;
 import com.sun.javafx.geom.Edge;
+import com.sun.org.apache.bcel.internal.generic.ANEWARRAY;
 import com.sun.org.apache.bcel.internal.generic.RET;
 import com.sun.org.apache.bcel.internal.generic.RETURN;
 import com.sun.org.apache.xpath.internal.operations.Bool;
@@ -89,9 +90,6 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 machLine.Life_OUT = (HashSet)machLine.Life_IN.clone();
                 machLine.Life_OUT.remove(ret);
 
-                // reordering
-                machLine.Life_IN = new HashSet<>(set_ordered(machLine.Life_IN));
-                machLine.Life_OUT = new HashSet<>(set_ordered(machLine.Life_OUT));
 
                 CODE.add(machLine);
                 STORES++;
@@ -341,8 +339,8 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             // buff += "// SUCC     : " +  SUCC.toString() +"\n";
             // buff += "// MODIFIED     : " +  MODIFIED.toString() +"\n";
             // buff += "// RETURNED     : " +  RETURNED.toString() +"\n";
-            buff += "// Life_IN  : " +  Life_IN.toString() +"\n";
-            buff += "// Life_OUT : " +  Life_OUT.toString() +"\n";
+            buff += "// Life_IN  : " +  set_ordered(Life_IN).toString() +"\n";
+            buff += "// Life_OUT : " +  set_ordered(Life_OUT).toString() +"\n";
             buff += "// Next_IN  : " +  Next_IN.toString() +"\n";
             buff += "// Next_OUT : " +  Next_OUT.toString() +"\n";
             return buff;
@@ -371,17 +369,20 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             {
                 currentLine.Life_IN.add(node);
             }
+
         }
+
+
     }
 
     private void compute_NextUse() {
         // TODO: Implement NextUse algorithm on the CODE array (for machine code)
 
-        for (int N = CODE.size() - STORES - 1 ; N >= 0; N--)
+        for (int N = CODE.size() - 1 ; N >= 0; N--)
         {
             MachLine currentLine = CODE.get(N);
 
-            if (N == CODE.size() - STORES - 1)
+            if (N == CODE.size() - 1)
             {
                 currentLine.Next_OUT = new NextUse();
 
@@ -389,6 +390,10 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 for (String ref : currentLine.REF)
                 {
                     currentLine.Next_IN.add(ref, N);
+                }
+                for (String def : currentLine.DEF) // -def
+                {
+                    currentLine.Next_IN.nextuse.remove(def);
                 }
             }
             else
@@ -447,6 +452,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
 
         Stack<String> stack = new Stack<String>();
 
+        HashSet<String> spilled = new HashSet<>();
         while (!graph.adj.isEmpty())
         {
             Integer kDiff = Integer.MAX_VALUE;
@@ -474,7 +480,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 }
             }
 
-/*
+
             if (possibleEntries.isEmpty()) // spill
             {
                 HashSet<String> possibleMostNeighbors = new HashSet();
@@ -483,7 +489,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 for (String node : graph.adj.keySet())
                 {
                     int nbNeighbours = graph.adj.get(node).size();
-                    if (nbNeighbours >= maxNeighbors)
+                    if (nbNeighbours >= maxNeighbors && !spilled.contains(node))
                     {
                         if (nbNeighbours > maxNeighbors)
                         {
@@ -497,62 +503,59 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                         }
                     }
                 }
-
                 String mostNeighborsEntry = set_ordered(possibleMostNeighbors).get(0);
+                spilled.add(mostNeighborsEntry);
                 ArrayList<Integer> uses = new ArrayList<Integer>();
+                int extraLines = 0;
+
                 for (int i = 0 ;  i < CODE.size() ; i++)
                 {
-                    if (CODE.get(i).Next_OUT.nextuse.containsKey(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD")) uses.add(i);
+                    if (CODE.get(i).line.contains(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD") && !CODE.get(i).line.get(0).equals("ST"))
+                    {
+                        uses.add(i);
+                        break;
+                    }
                 }
 
-                if (uses.size() == 1 && MODIFIED.contains(mostNeighborsEntry) && RETURNED.contains(mostNeighborsEntry))
+                int first = uses.get(0);
+                if (CODE.get(first).line.get(1).equals(mostNeighborsEntry) && !CODE.get(first).line.get(0).equals("ST") && !CODE.get(first).line.get(0).equals("LD"))
                 {
                     List<String> instruction = new ArrayList<>();
                     instruction.add("ST");
+                    // Strings are immutable so a copy is created instead. Here, we are trying to do ST a, @a
                     instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // p22 cours 12
                     instruction.add(mostNeighborsEntry);
 
                     MachLine storeLine = new MachLine(instruction);
                     CODE.add(uses.get(0) + 1, storeLine);
-
+                    extraLines++;
                 }
-                else if (uses.size() > 1)
+
+                uses.clear();
+                if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null && !CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry).isEmpty()) // one or the other would depend on how i implemented
                 {
-                    for (int i = 0 ; i < uses.size() ; i++)
+                    uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry)); // we need extraLines because this saves only the old values (next out isnt up to date anymore)
+                    List<String> instruction = new ArrayList<>();
+                    instruction.add("LD");
+                    instruction.add(mostNeighborsEntry.concat("!"));
+                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
+
+                    MachLine loadLine = new MachLine(instruction);
+                    CODE.add(uses.get(0) + extraLines, loadLine);
+
+                    for (int i = uses.get(0) + extraLines; i < CODE.size(); ++i)
                     {
-                        if (i == 0 && MODIFIED.contains(mostNeighborsEntry)) // first one
+                        // now for the next occurences we concat a !
+                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                        for (int j = 0; j < currentLine.size(); ++j)
                         {
-                            List<String> instruction = new ArrayList<>();
-                            instruction.add("ST");
-                            instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // p22 cours 12
-                            instruction.add(mostNeighborsEntry);
-
-                            MachLine storeLine = new MachLine(instruction);
-                            CODE.add(uses.get(0) + 1, storeLine);
-                        }
-                        else if (MODIFIED.contains(mostNeighborsEntry))
-                        {
-                            if (i == 1)
+                            if (currentLine.get(j).equals(mostNeighborsEntry))
                             {
-                                List<String> instruction = new ArrayList<>();
-                                instruction.add("LD");
-                                instruction.add(mostNeighborsEntry.concat("!"));
-                                instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
-
-                                MachLine storeLine = new MachLine(instruction);
-                                CODE.add(uses.get(i), storeLine);
-                            }
-                            else // si on continue de suivre litteralement ce qui est ecrit (sans ajouter + que un ! par iter)
-                            {
-                                for (int j = 0 ; j < CODE.get(i).line.size(); j++)
-                                {
-                                    if (CODE.get(i).line.equals(mostNeighborsEntry))
-                                    {
-                                        CODE.get(i).line.get(j).concat("!");
-                                    }
-                                }
+                                currentLine.set(j, mostNeighborsEntry.concat("!"));
                             }
                         }
+                        MachLine newRegLine = new MachLine(currentLine);
+                        CODE.set(i, newRegLine);
                     }
                 }
 
@@ -563,11 +566,11 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 stack.clear();
             }
             else // no spill
-            {*/
+            {
             String closestEntry = set_ordered(possibleEntries).get(0);
             graph.removeNode(closestEntry);
             stack.push(closestEntry);
-            //}
+            }
 
         }
 
@@ -585,14 +588,16 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             poppedNodes.add(poppedNode);
 
             coloredGraph.addNode(poppedNode);
-            for (String pastPopped : poppedNodes) // adding adjacencies to the not-yet-colored-graph
+            if (neighbors != null)
             {
-                if (neighbors.contains(pastPopped))
+                for (String pastPopped : poppedNodes) // adding adjacencies to the not-yet-colored-graph
                 {
-                    coloredGraph.addAdj(pastPopped, poppedNode);
+                    if (neighbors.contains(pastPopped))
+                    {
+                        coloredGraph.addAdj(pastPopped, poppedNode);
+                    }
                 }
             }
-
 
             // color the node
             if (coloredGraph.adj.get(poppedNode).isEmpty())
