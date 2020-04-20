@@ -85,7 +85,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 line.add(ret);
 
                 MachLine machLine = new MachLine(line);
-                MODIFIED.remove(ret);
+                // MODIFIED.remove(ret);
                 machLine.Life_IN = (HashSet)CODE.get(CODE.size() - 1).Life_OUT.clone();
                 machLine.Life_OUT = (HashSet)machLine.Life_IN.clone();
                 machLine.Life_OUT.remove(ret);
@@ -181,10 +181,10 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             List<String> loadLine = new ArrayList<>();
             loadLine.add("LD");
             loadLine.add(left);
-            loadLine.add(left.replace("@", ""));
+            loadLine.add(left);
 
             MachLine loadMachLine = new MachLine(loadLine);
-            LOADED.add(left.replace("@", ""));
+            LOADED.add(left);
 
             CODE.add(loadMachLine);
         }
@@ -215,16 +215,15 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
         //       here the type of Assignment is "assigned = left" and you should put pointers in the MachLine at
         //       the moment (ex: "@a")
 
-        if (!LOADED.contains(left) && !left.contains("#")) // make sure we fill up LOADED somewhere. (at each getReg)
+        if (!LOADED.contains(left) && !left.contains("#"))
         {
             List<String> loadLine = new ArrayList<>();
             loadLine.add("LD");
             loadLine.add(left);
-            loadLine.add(left.replace("@", "")); // left is supposed to be @ + something already. are we trying to remove the @..
+            loadLine.add(left);
 
             MachLine loadMachLine = new MachLine(loadLine);
-            LOADED.add(left.replace("@", ""));
-
+            LOADED.add(left);
             CODE.add(loadMachLine);
         }
 
@@ -439,6 +438,133 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
         }
     }
 
+    public String getNodeMostNeighbors(Graph graph, HashSet<String> spilled)
+    {
+        HashSet<String> possibleMostNeighbors = new HashSet();
+        Integer maxNeighbors = Integer.MIN_VALUE;
+
+        for (String node : graph.adj.keySet())
+        {
+            int nbNeighbours = graph.adj.get(node).size();
+            if (nbNeighbours >= maxNeighbors && !spilled.contains(node))
+            {
+                if (nbNeighbours > maxNeighbors)
+                {
+                    maxNeighbors = nbNeighbours;
+                    possibleMostNeighbors.clear();
+                    possibleMostNeighbors.add(node);
+                }
+                else
+                {
+                    possibleMostNeighbors.add(node);
+                }
+            }
+        }
+        return set_ordered(possibleMostNeighbors).get(0);
+    }
+
+    public void spill(Graph graph, HashSet<String> spilled)
+    {
+        while (true) // helene's boucle???? ask why
+        {
+            String mostNeighborsEntry = getNodeMostNeighbors(graph, spilled);
+            spilled.add(mostNeighborsEntry);
+
+
+            ArrayList<Integer> uses = new ArrayList<Integer>();
+            int extraLines = 0;
+
+            int first = -1;
+            for (int i = 0 ;  i < CODE.size() ; i++)
+            {
+                if (CODE.get(i).line.contains(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD") && !CODE.get(i).line.get(0).equals("ST"))
+                {
+                    first = i;
+                    uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry)); // we need extraLines because this saves only the old values (next out isnt up to date anymore)
+                    break;
+                }
+            }
+
+            if(!MODIFIED.contains(mostNeighborsEntry) && uses == null)
+            {
+                graph.removeNode(mostNeighborsEntry);
+            }
+            else
+            {
+                if (MODIFIED.contains(mostNeighborsEntry)) // which means we would be modifying it. safer than MODIFIED.contains
+                {
+                    List<String> instruction = new ArrayList<>();
+                    instruction.add("ST");
+                    // Strings are immutable so a copy is created instead. Here, we are trying to do ST a, @a
+                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // p22 cours 12
+                    instruction.add(mostNeighborsEntry);
+
+                    MachLine storeLine = new MachLine(instruction);
+                    CODE.add(first + 1, storeLine);
+                    extraLines++;
+                }
+
+                if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null) // one or the other would depend on how i implemented
+                {
+                    List<String> instruction = new ArrayList<>();
+                    instruction.add("LD");
+                    instruction.add(mostNeighborsEntry.concat("!"));
+                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
+
+                    MachLine loadLine = new MachLine(instruction);
+                    CODE.add(uses.get(0) + extraLines, loadLine);
+                    extraLines++;
+                    for (int i = uses.get(0) + extraLines; i < CODE.size(); ++i)
+                    {
+                        // now for the next occurences we concat a !
+                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                        for (int j = 0; j < currentLine.size(); ++j)
+                        {
+                            if (currentLine.get(j).equals(mostNeighborsEntry))
+                            {
+                                currentLine.set(j, mostNeighborsEntry.concat("!"));
+                            }
+                        }
+                        MachLine newRegLine = new MachLine(currentLine);
+                        CODE.set(i, newRegLine);
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    public HashSet<String> getPossibleEntriesUnderK(Graph graph)
+    {
+        Integer kDiff = Integer.MAX_VALUE;
+        HashSet<String> possibleEntries = new HashSet();
+
+        // finding the nearest node
+        for (String node : graph.adj.keySet())
+        {
+            int nbNeighbours = graph.adj.get(node).size();
+            if (nbNeighbours < REG)
+            {
+                if (REG - nbNeighbours <= kDiff)
+                {
+                    if (REG - nbNeighbours < kDiff)
+                    {
+                        kDiff = REG - nbNeighbours;
+                        possibleEntries.clear();
+                        possibleEntries.add(node);
+                    }
+                    else
+                    {
+                        possibleEntries.add(node);
+                    }
+                }
+            }
+        }
+
+        return possibleEntries;
+    }
+
+
     public void compute_machineCode() {
         // TODO: Implement machine code with graph coloring for register assignation (REG is the register limitation)
         //       The pointers (ex: "@a") here should be replace by registers (ex: R0) respecting the coloring algorithm
@@ -455,126 +581,32 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
         HashSet<String> spilled = new HashSet<>();
         while (!graph.adj.isEmpty())
         {
-            Integer kDiff = Integer.MAX_VALUE;
-            HashSet<String> possibleEntries = new HashSet();
-
-            // finding the nearest node
-            for (String node : graph.adj.keySet())
-            {
-                int nbNeighbours = graph.adj.get(node).size();
-                if (nbNeighbours < REG)
-                {
-                    if (REG - nbNeighbours <= kDiff)
-                    {
-                        if (REG - nbNeighbours < kDiff)
-                        {
-                            kDiff = REG - nbNeighbours;
-                            possibleEntries.clear();
-                            possibleEntries.add(node);
-                        }
-                        else
-                        {
-                            possibleEntries.add(node);
-                        }
-                    }
-                }
-            }
-
+            HashSet<String> possibleEntries = getPossibleEntriesUnderK(graph);
 
             if (possibleEntries.isEmpty()) // spill
             {
-                HashSet<String> possibleMostNeighbors = new HashSet();
-                Integer maxNeighbors = Integer.MIN_VALUE;
-
-                for (String node : graph.adj.keySet())
-                {
-                    int nbNeighbours = graph.adj.get(node).size();
-                    if (nbNeighbours >= maxNeighbors && !spilled.contains(node))
-                    {
-                        if (nbNeighbours > maxNeighbors)
-                        {
-                            maxNeighbors = nbNeighbours;
-                            possibleMostNeighbors.clear();
-                            possibleMostNeighbors.add(node);
-                        }
-                        else
-                        {
-                            possibleMostNeighbors.add(node);
-                        }
-                    }
-                }
-                String mostNeighborsEntry = set_ordered(possibleMostNeighbors).get(0);
-                spilled.add(mostNeighborsEntry);
-                ArrayList<Integer> uses = new ArrayList<Integer>();
-                int extraLines = 0;
-
-                for (int i = 0 ;  i < CODE.size() ; i++)
-                {
-                    if (CODE.get(i).line.contains(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD") && !CODE.get(i).line.get(0).equals("ST"))
-                    {
-                        uses.add(i);
-                        break;
-                    }
-                }
-
-                int first = uses.get(0);
-                if (CODE.get(first).line.get(1).equals(mostNeighborsEntry) && !CODE.get(first).line.get(0).equals("ST") && !CODE.get(first).line.get(0).equals("LD"))
-                {
-                    List<String> instruction = new ArrayList<>();
-                    instruction.add("ST");
-                    // Strings are immutable so a copy is created instead. Here, we are trying to do ST a, @a
-                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // p22 cours 12
-                    instruction.add(mostNeighborsEntry);
-
-                    MachLine storeLine = new MachLine(instruction);
-                    CODE.add(uses.get(0) + 1, storeLine);
-                    extraLines++;
-                }
-
-                uses.clear();
-                if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null && !CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry).isEmpty()) // one or the other would depend on how i implemented
-                {
-                    uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry)); // we need extraLines because this saves only the old values (next out isnt up to date anymore)
-                    List<String> instruction = new ArrayList<>();
-                    instruction.add("LD");
-                    instruction.add(mostNeighborsEntry.concat("!"));
-                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
-
-                    MachLine loadLine = new MachLine(instruction);
-                    CODE.add(uses.get(0) + extraLines, loadLine);
-
-                    for (int i = uses.get(0) + extraLines; i < CODE.size(); ++i)
-                    {
-                        // now for the next occurences we concat a !
-                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                        for (int j = 0; j < currentLine.size(); ++j)
-                        {
-                            if (currentLine.get(j).equals(mostNeighborsEntry))
-                            {
-                                currentLine.set(j, mostNeighborsEntry.concat("!"));
-                            }
-                        }
-                        MachLine newRegLine = new MachLine(currentLine);
-                        CODE.set(i, newRegLine);
-                    }
-                }
-
-                compute_LifeVar(); // make sure it clears properly and iterates through the base code
-                compute_NextUse(); // make sure it iterates through the whole code array and clears properly
-
+                spill(graph, spilled);
+                compute_LifeVar();
+                compute_NextUse();
                 constructInteferenceGraph(graph);
+                constructInteferenceGraph(savedGraph);
                 stack.clear();
             }
             else // no spill
             {
-            String closestEntry = set_ordered(possibleEntries).get(0);
-            graph.removeNode(closestEntry);
-            stack.push(closestEntry);
+                String closestEntry = set_ordered(possibleEntries).get(0);
+                stack.push(closestEntry);
+                graph.removeNode(closestEntry);
             }
 
         }
 
+        color(savedGraph, stack);
+    }
 
+
+    public void color(Graph savedGraph, Stack<String> stack)
+    {
         // COLORING
         HashSet<String> poppedNodes = new HashSet<>();
         HashMap<String, String> symbolicToReg = new HashMap<>();
@@ -658,12 +690,8 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                     CODE.get(i).line.set(j, symbolicToReg.get(symbolic));
                 }
             }
-
         }
-
     }
-
-
     public List<String> set_ordered(Set<String> s) {
         // function given to order a set in alphabetic order TODO: use it! or redo-it yourself
         List<String> list = new ArrayList<String>(s);
