@@ -333,8 +333,8 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 buff += ", " + line.get(i);
             buff +="\n";
             // you can uncomment the others set if you want to see them.
-            buff += "// REF      : " +  REF.toString() +"\n";
-             buff += "// DEF      : " +  DEF.toString() +"\n";
+            //buff += "// REF      : " +  REF.toString() +"\n";
+            // buff += "// DEF      : " +  DEF.toString() +"\n";
             // buff += "// PRED     : " +  PRED.toString() +"\n";
             // buff += "// SUCC     : " +  SUCC.toString() +"\n";
             // buff += "// MODIFIED     : " +  MODIFIED.toString() +"\n";
@@ -484,18 +484,18 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                     if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null)
                     {
                         uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry));
-                        break;
                     }
+                    break;
                 }
             }
 
-            if(!MODIFIED.contains(mostNeighborsEntry) && uses == null)
-            {
-                graph.removeNode(mostNeighborsEntry);
-            }
-            else
-            {
-                if (MODIFIED.contains(mostNeighborsEntry)) // which means we would be modifying it. safer than MODIFIED.contains
+            //if(!MODIFIED.contains(mostNeighborsEntry) && uses.isEmpty())
+            //{
+            //    graph.removeNode(mostNeighborsEntry);
+            //}
+            //else
+            //{
+                if (CODE.get(first).DEF.contains(mostNeighborsEntry)) // which means we would be modifying it. safer than MODIFIED.contains
                 {
                     List<String> instruction = new ArrayList<>();
                     instruction.add("ST");
@@ -508,7 +508,23 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                     extraLines++;
                 }
 
-                if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null) // one or the other would depend on how i implemented
+                if (uses.isEmpty())
+                {
+                    for (int i = first + extraLines + 1; i < CODE.size(); ++i)
+                    {
+                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                        for (int j = 0; j < currentLine.size(); ++j)
+                        {
+                            if (currentLine.get(j).equals(mostNeighborsEntry))
+                            {
+                                currentLine.set(j, mostNeighborsEntry.concat("!"));
+                            }
+                        }
+                        MachLine newRegLine = new MachLine(currentLine);
+                        CODE.set(i, newRegLine);
+                    }
+                }
+                else//if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null)
                 {
                     List<String> instruction = new ArrayList<>();
                     instruction.add("LD");
@@ -521,32 +537,24 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                     int codeSize = CODE.size();
                     for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
                     {
-                        if (CODE.get(i).line.contains("ST") && CODE.get(i).line.contains(mostNeighborsEntry))
+                        // now for the next occurences we concat a !
+                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                        for (int j = 0; j < currentLine.size(); ++j)
                         {
-                            CODE.remove(i);
-                            codeSize--;
-                        }
-                        else
-                        {
-                            // now for the next occurences we concat a !
-                            ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                            for (int j = 0; j < currentLine.size(); ++j)
+                            if (currentLine.get(j).equals(mostNeighborsEntry))
                             {
-                                if (currentLine.get(j).equals(mostNeighborsEntry))
-                                {
-                                    currentLine.set(j, mostNeighborsEntry.concat("!"));
-                                }
+                                currentLine.set(j, mostNeighborsEntry.concat("!"));
                             }
-                            MachLine newRegLine = new MachLine(currentLine);
-                            CODE.set(i, newRegLine);
                         }
+                        MachLine newRegLine = new MachLine(currentLine);
+                        CODE.set(i, newRegLine);
                     }
                 }
 
 // regeN here/?>????????
 
                 break;
-            }
+            //}
         }
     }
 
@@ -618,8 +626,21 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
         }
 
         color(savedGraph, stack);
+        optimize();
     }
 
+    public void optimize()
+    {
+        for (int i = 0; i < CODE.size(); ++i)
+        {
+            List<String> currentLine = CODE.get(i).line;
+            if (currentLine.get(0).equals("ADD") && currentLine.get(2).equals("#0") && currentLine.get(1).equals(currentLine.get(3))) // add r0 #0 r0
+            {
+                CODE.remove(i);
+            }
+            // maybe commutatitvite de laddition
+        }
+    }
 
     public void color(Graph savedGraph, Stack<String> stack)
     {
