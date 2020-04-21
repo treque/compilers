@@ -51,7 +51,8 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
         compute_LifeVar(); // first Life variables computation (should be recalled when machine code generation)
         compute_NextUse(); // first Next-Use computation (should be recalled when machine code generation)
         compute_machineCode(); // generate the machine code from the CODE array (the CODE array should be transformed
-
+        compute_LifeVar();
+        compute_NextUse();
         for (int i = 0; i < CODE.size(); i++) // print the output
             m_writer.println(CODE.get(i));
         return null;
@@ -332,8 +333,8 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 buff += ", " + line.get(i);
             buff +="\n";
             // you can uncomment the others set if you want to see them.
-            //buff += "// REF      : " +  REF.toString() +"\n";
-            // buff += "// DEF      : " +  DEF.toString() +"\n";
+            buff += "// REF      : " +  REF.toString() +"\n";
+             buff += "// DEF      : " +  DEF.toString() +"\n";
             // buff += "// PRED     : " +  PRED.toString() +"\n";
             // buff += "// SUCC     : " +  SUCC.toString() +"\n";
             // buff += "// MODIFIED     : " +  MODIFIED.toString() +"\n";
@@ -480,8 +481,11 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 if (CODE.get(i).line.contains(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD") && !CODE.get(i).line.get(0).equals("ST"))
                 {
                     first = i;
-                    uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry)); // we need extraLines because this saves only the old values (next out isnt up to date anymore)
-                    break;
+                    if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null)
+                    {
+                        uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry));
+                        break;
+                    }
                 }
             }
 
@@ -514,21 +518,33 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                     MachLine loadLine = new MachLine(instruction);
                     CODE.add(uses.get(0) + extraLines, loadLine);
                     extraLines++;
-                    for (int i = uses.get(0) + extraLines; i < CODE.size(); ++i)
+                    int codeSize = CODE.size();
+                    for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
                     {
-                        // now for the next occurences we concat a !
-                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                        for (int j = 0; j < currentLine.size(); ++j)
+                        if (CODE.get(i).line.contains("ST") && CODE.get(i).line.contains(mostNeighborsEntry))
                         {
-                            if (currentLine.get(j).equals(mostNeighborsEntry))
-                            {
-                                currentLine.set(j, mostNeighborsEntry.concat("!"));
-                            }
+                            CODE.remove(i);
+                            codeSize--;
                         }
-                        MachLine newRegLine = new MachLine(currentLine);
-                        CODE.set(i, newRegLine);
+                        else
+                        {
+                            // now for the next occurences we concat a !
+                            ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                            for (int j = 0; j < currentLine.size(); ++j)
+                            {
+                                if (currentLine.get(j).equals(mostNeighborsEntry))
+                                {
+                                    currentLine.set(j, mostNeighborsEntry.concat("!"));
+                                }
+                            }
+                            MachLine newRegLine = new MachLine(currentLine);
+                            CODE.set(i, newRegLine);
+                        }
                     }
                 }
+
+// regeN here/?>????????
+
                 break;
             }
         }
