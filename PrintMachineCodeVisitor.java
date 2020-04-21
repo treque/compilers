@@ -427,7 +427,6 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 }
             }
 
-
             //sorting the AL
             for (HashMap.Entry<String, ArrayList<Integer>> uses : currentLine.Next_IN.nextuse.entrySet())
             {
@@ -466,95 +465,81 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
 
     public void spill(Graph graph, HashSet<String> spilled)
     {
-        while (true) // helene's boucle???? ask why
+
+        String mostNeighborsEntry = getNodeMostNeighbors(graph, spilled);
+        spilled.add(mostNeighborsEntry);
+
+
+        ArrayList<Integer> uses = new ArrayList<Integer>();
+        int extraLines = 0;
+
+        int first = -1;
+        for (int i = 0 ;  i < CODE.size() ; i++)
         {
-            String mostNeighborsEntry = getNodeMostNeighbors(graph, spilled);
-            spilled.add(mostNeighborsEntry);
-
-
-            ArrayList<Integer> uses = new ArrayList<Integer>();
-            int extraLines = 0;
-
-            int first = -1;
-            for (int i = 0 ;  i < CODE.size() ; i++)
+            if (CODE.get(i).line.contains(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD") && !CODE.get(i).line.get(0).equals("ST"))
             {
-                if (CODE.get(i).line.contains(mostNeighborsEntry) && !CODE.get(i).line.get(0).equals("LD") && !CODE.get(i).line.get(0).equals("ST"))
+                first = i;
+                if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null)
                 {
-                    first = i;
-                    if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null)
-                    {
-                        uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry));
-                    }
-                    break;
+                    uses.addAll(CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry));
                 }
-            }
-
-            //if(!MODIFIED.contains(mostNeighborsEntry) && uses.isEmpty())
-            //{
-            //    graph.removeNode(mostNeighborsEntry);
-            //}
-            //else
-            //{
-                if (CODE.get(first).DEF.contains(mostNeighborsEntry)) // which means we would be modifying it. safer than MODIFIED.contains
-                {
-                    List<String> instruction = new ArrayList<>();
-                    instruction.add("ST");
-                    // Strings are immutable so a copy is created instead. Here, we are trying to do ST a, @a
-                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // p22 cours 12
-                    instruction.add(mostNeighborsEntry);
-
-                    MachLine storeLine = new MachLine(instruction);
-                    CODE.add(first + 1, storeLine);
-                    extraLines++;
-                }
-
-                if (uses.isEmpty())
-                {
-                    for (int i = first + extraLines + 1; i < CODE.size(); ++i)
-                    {
-                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                        for (int j = 0; j < currentLine.size(); ++j)
-                        {
-                            if (currentLine.get(j).equals(mostNeighborsEntry))
-                            {
-                                currentLine.set(j, mostNeighborsEntry.concat("!"));
-                            }
-                        }
-                        MachLine newRegLine = new MachLine(currentLine);
-                        CODE.set(i, newRegLine);
-                    }
-                }
-                else//if (CODE.get(first).Next_OUT.nextuse.get(mostNeighborsEntry) != null)
-                {
-                    List<String> instruction = new ArrayList<>();
-                    instruction.add("LD");
-                    instruction.add(mostNeighborsEntry.concat("!"));
-                    instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
-
-                    MachLine loadLine = new MachLine(instruction);
-                    CODE.add(uses.get(0) + extraLines, loadLine);
-                    extraLines++;
-                    int codeSize = CODE.size();
-                    for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
-                    {
-                        // now for the next occurences we concat a !
-                        ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                        for (int j = 0; j < currentLine.size(); ++j)
-                        {
-                            if (currentLine.get(j).equals(mostNeighborsEntry))
-                            {
-                                currentLine.set(j, mostNeighborsEntry.concat("!"));
-                            }
-                        }
-                        MachLine newRegLine = new MachLine(currentLine);
-                        CODE.set(i, newRegLine);
-                    }
-                }
-
-// regeN here/?>????????
-
                 break;
-            //}
+            }
+        }
+
+        if (CODE.get(first).DEF.contains(mostNeighborsEntry))
+        {
+            List<String> instruction = new ArrayList<>();
+            instruction.add("ST");
+            instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // p22 cours 12
+            instruction.add(mostNeighborsEntry);
+
+            MachLine storeLine = new MachLine(instruction);
+            CODE.add(first + 1, storeLine);
+            extraLines++;
+        }
+
+        if (uses.isEmpty())
+        {
+            for (int i = first + extraLines + 1; i < CODE.size(); ++i)
+            {
+                ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                for (int j = 0; j < currentLine.size(); ++j)
+                {
+                    if (currentLine.get(j).equals(mostNeighborsEntry))
+                    {
+                        currentLine.set(j, mostNeighborsEntry.concat("!"));
+                    }
+                }
+                MachLine newRegLine = new MachLine(currentLine);
+                CODE.set(i, newRegLine);
+            }
+        }
+        else
+        {
+            List<String> instruction = new ArrayList<>();
+            instruction.add("LD");
+            instruction.add(mostNeighborsEntry.concat("!"));
+            instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
+
+            MachLine loadLine = new MachLine(instruction);
+            CODE.add(uses.get(0) + extraLines, loadLine);
+            extraLines++;
+            int codeSize = CODE.size();
+            for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
+            {
+                // now for the next occurences we concat a !
+                ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                for (int j = 0; j < currentLine.size(); ++j)
+                {
+                    if (currentLine.get(j).equals(mostNeighborsEntry))
+                    {
+                        currentLine.set(j, mostNeighborsEntry.concat("!"));
+                    }
+                }
+                MachLine newRegLine = new MachLine(currentLine);
+                CODE.set(i, newRegLine);
+            }
         }
     }
 
@@ -627,6 +612,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
 
         color(savedGraph, stack);
         optimize();
+        compute_NextUse();
     }
 
     public void optimize()
