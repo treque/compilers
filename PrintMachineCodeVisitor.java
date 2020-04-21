@@ -528,7 +528,6 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             int codeSize = CODE.size();
             for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
             {
-                // now for the next occurences we concat a !
                 ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
                 for (int j = 0; j < currentLine.size(); ++j)
                 {
@@ -575,10 +574,6 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
 
 
     public void compute_machineCode() {
-        // TODO: Implement machine code with graph coloring for register assignation (REG is the register limitation)
-        //       The pointers (ex: "@a") here should be replace by registers (ex: R0) respecting the coloring algorithm
-        //       described in the TP requirements.
-
         Graph graph = new Graph();
         constructInteferenceGraph(graph);
 
@@ -611,8 +606,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
         }
 
         color(savedGraph, stack);
-        optimize();
-        compute_NextUse();
+        optimize(); // no need to recalculate next_use after
     }
 
     public void optimize()
@@ -630,91 +624,33 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
 
     public void color(Graph savedGraph, Stack<String> stack)
     {
-        // COLORING
-        HashSet<String> poppedNodes = new HashSet<>();
-        HashMap<String, String> symbolicToReg = new HashMap<>();
-
-        Graph coloredGraph = new Graph();
-        while (!stack.isEmpty())
-        {
-            String poppedNode = stack.pop();
-
-            HashSet<String> neighbors = savedGraph.adj.get(poppedNode);
-            poppedNodes.add(poppedNode);
-
-            coloredGraph.addNode(poppedNode);
-            if (neighbors != null)
-            {
-                for (String pastPopped : poppedNodes) // adding adjacencies to the not-yet-colored-graph
-                {
-                    if (neighbors.contains(pastPopped))
-                    {
-                        coloredGraph.addAdj(pastPopped, poppedNode);
+        HashMap<String, Integer> varToRegister = new HashMap<>();
+        while (!stack.isEmpty()) {
+            String variable = stack.pop();
+            Integer no = 0;
+            boolean foundRegNo = false;
+            boolean incrementedRegNo = false;
+            while (!foundRegNo) {
+                for (String neighbor : savedGraph.adj.get(variable)) {
+                    if (no.equals(varToRegister.get(neighbor))) {
+                        no++;
+                        incrementedRegNo = true;
                     }
                 }
+                if (!incrementedRegNo) foundRegNo = true;
+                incrementedRegNo = false;
             }
+            varToRegister.put(variable, no);
+        }
 
-            // color the node
-            if (coloredGraph.adj.get(poppedNode).isEmpty())
-            {
-                symbolicToReg.put(poppedNode, "R0");
-            }
-            else
-            {
-                // find the next available register
-                int maxReg = 0;
-
-                // first find the max
-                for (String coloredNeighbor : coloredGraph.adj.get(poppedNode))
-                {
-                    int regNum = Integer.parseInt(symbolicToReg.get(coloredNeighbor).replace("R", ""));
-                    if (regNum > maxReg)
-                    {
-                        maxReg = regNum;
-                    }
-                }
-                // iterate through the neighbors to see if there is a gap
-                // ex neighbours are 0 1 4, should add 2 and break at 2.
-                HashSet<String> neighbours = coloredGraph.adj.get(poppedNode);
-                HashSet<String> neighbourRegisters = new HashSet<>();
-
-                // remplir le neighbourRegisters
-                for (String neighbour : neighbours)
-                {
-                    String reg = symbolicToReg.get(neighbour);
-                    neighbourRegisters.add(reg);
-                }
-
-                // now checking for the gap
-                // ex on regarde si (0 1 4) contient 0, 1, 2, 3, 4
-                int currentRegNumber = 0;
-                while (currentRegNumber < maxReg)
-                {
-                    if (!neighbourRegisters.contains("R" + Integer.toString(currentRegNumber)))
-                    {
-                        // gap found
-                        maxReg = currentRegNumber - 1; // -1 bc on fait +1 plus bas, on si je trouve que 2 est pas la, alors 1 + 1 = R2
-                        break;
-                    }
-                    currentRegNumber++;
-                }
-
-                symbolicToReg.put(poppedNode, "R" + Integer.toString(maxReg + 1));
+        for (MachLine machLine : CODE) {
+            for (int i = 0; i < machLine.line.size(); i++) {
+                if (machLine.line.get(i).contains("@")) machLine.line.set(i, "R" + varToRegister.get(machLine.line.get(i)));
             }
         }
 
-        for (int i = 0 ; i < CODE.size() ; i++) // updating the code
-        {
-            for (int j = 0 ; j < CODE.get(i).line.size() ; j++)
-            {
-                if (symbolicToReg.containsKey(CODE.get(i).line.get(j)))
-                {
-                    String symbolic = CODE.get(i).line.get(j);
-                    CODE.get(i).line.set(j, symbolicToReg.get(symbolic));
-                }
-            }
-        }
     }
+
     public List<String> set_ordered(Set<String> s) {
         // function given to order a set in alphabetic order TODO: use it! or redo-it yourself
         List<String> list = new ArrayList<String>(s);
