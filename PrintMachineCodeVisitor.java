@@ -498,25 +498,35 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             MachLine storeLine = new MachLine(instruction);
             CODE.add(first + 1, storeLine);
             extraLines++;
-            //**
+            /*//**
             MODIFIED.remove(mostNeighborsEntry);
-            //**
+            //***/
         }
 
         if (uses.isEmpty())
         {
+
             for (int i = first + extraLines + 1; i < CODE.size(); ++i)
             {
-                ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                for (int j = 0; j < currentLine.size(); ++j)
+                if (CODE.get(i).line.get(0).equals("ST") && CODE.get(i).line.get(2).equals(mostNeighborsEntry))
                 {
-                    if (currentLine.get(j).equals(mostNeighborsEntry))
-                    {
-                        currentLine.set(j, mostNeighborsEntry.concat("!"));
-                    }
+                    CODE.remove(i);
+                    extraLines--;
+                    i--;
                 }
-                MachLine newRegLine = new MachLine(currentLine);
-                CODE.set(i, newRegLine);
+                else
+                {
+                    ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                    for (int j = 0; j < currentLine.size(); ++j)
+                    {
+                        if (currentLine.get(j).equals(mostNeighborsEntry))
+                        {
+                            currentLine.set(j, mostNeighborsEntry.concat("!"));
+                        }
+                    }
+                    MachLine newRegLine = new MachLine(currentLine);
+                    CODE.set(i, newRegLine);
+                }
             }
         }
         else
@@ -533,33 +543,34 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
             {
                 //**
-                if (CODE.get(i).line.size() >= 3)
+                if (CODE.get(i).line.get(0).equals("ST") && CODE.get(i).line.get(2).equals(mostNeighborsEntry))
                 {
-                    if (CODE.get(i).line.get(0).equals("ST") && CODE.get(i).line.get(2).equals(mostNeighborsEntry))
-                    {
-                        CODE.remove(i);
-                        extraLines--;
-                        codeSize--;
-                    }
+                    CODE.remove(i);
+                    extraLines--;
+                    codeSize--;
+                    i--;
                 }
                 //**
-                ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
-                for (int j = 0; j < currentLine.size(); ++j)
+                else
                 {
-                    if (currentLine.get(j).equals(mostNeighborsEntry))
+                    ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
+                    for (int j = 0; j < currentLine.size(); ++j)
                     {
-                        currentLine.set(j, mostNeighborsEntry.concat("!"));
+                        if (currentLine.get(j).equals(mostNeighborsEntry))
+                        {
+                            currentLine.set(j, mostNeighborsEntry.concat("!"));
+                        }
                     }
+                    MachLine newRegLine = new MachLine(currentLine);
+                    CODE.set(i, newRegLine);
                 }
-                MachLine newRegLine = new MachLine(currentLine);
-                CODE.set(i, newRegLine);
             }
         }
 
         // ***
         for (int i = first + 1; i < CODE.size(); ++i)
         {
-            if (CODE.get(i).DEF.contains(mostNeighborsEntry.concat("!")))
+            if (CODE.get(i).DEF.contains(mostNeighborsEntry.concat("!")) && !CODE.get(i).line.get(0).equals("ST") && !CODE.get(i).line.get(0).equals("LD"))
             {
                 spilledModified = true;
             }
