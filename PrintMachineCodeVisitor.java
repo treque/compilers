@@ -468,8 +468,9 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
 
         String mostNeighborsEntry = getNodeMostNeighbors(graph, spilled);
         spilled.add(mostNeighborsEntry);
-
-
+        //**
+        boolean spilledModified = false;
+        //**
         ArrayList<Integer> uses = new ArrayList<Integer>();
         int extraLines = 0;
 
@@ -497,6 +498,9 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             MachLine storeLine = new MachLine(instruction);
             CODE.add(first + 1, storeLine);
             extraLines++;
+            //**
+            MODIFIED.remove(mostNeighborsEntry);
+            //**
         }
 
         if (uses.isEmpty())
@@ -520,7 +524,7 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             List<String> instruction = new ArrayList<>();
             instruction.add("LD");
             instruction.add(mostNeighborsEntry.concat("!"));
-            instruction.add(mostNeighborsEntry.replace("@", "").replace("!", "")); // LD @a!, a
+            instruction.add(mostNeighborsEntry.replace("@", "").replace("!", ""));
 
             MachLine loadLine = new MachLine(instruction);
             CODE.add(uses.get(0) + extraLines, loadLine);
@@ -528,6 +532,17 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
             int codeSize = CODE.size();
             for (int i = uses.get(0) + extraLines; i < codeSize; ++i)
             {
+                //**
+                if (CODE.get(i).line.size() >= 3)
+                {
+                    if (CODE.get(i).line.get(0).equals("ST") && CODE.get(i).line.get(2).equals(mostNeighborsEntry))
+                    {
+                        CODE.remove(i);
+                        extraLines--;
+                        codeSize--;
+                    }
+                }
+                //**
                 ArrayList<String> currentLine = new ArrayList<String>(CODE.get(i).line);
                 for (int j = 0; j < currentLine.size(); ++j)
                 {
@@ -540,6 +555,27 @@ public class PrintMachineCodeVisitor implements ParserVisitor {
                 CODE.set(i, newRegLine);
             }
         }
+
+        // ***
+        for (int i = first + 1; i < CODE.size(); ++i)
+        {
+            if (CODE.get(i).DEF.contains(mostNeighborsEntry.concat("!")))
+            {
+                spilledModified = true;
+            }
+        }
+
+        if (spilledModified)
+        {
+            List<String> instruction = new ArrayList<>();
+            instruction.add("ST");
+            instruction.add(mostNeighborsEntry.replace("@", "").replace("!", ""));
+            instruction.add(mostNeighborsEntry.concat("!"));
+
+            MachLine loadLine = new MachLine(instruction);
+            CODE.add(loadLine);
+        }
+        //**
     }
 
     public HashSet<String> getPossibleEntriesUnderK(Graph graph)
